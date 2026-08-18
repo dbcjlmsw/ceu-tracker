@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CEU Tracker</title>
+<style>
+  :root{
+    --bg:#f4f6f8; --card:#fff; --border:#e0e4e8; --text:#1f2937; --muted:#6b7280;
+    --green:#16a34a; --yellow:#ca8a04; --red:#dc2626; --blue:#2563eb;
+    --green-bg:#f0fdf4; --yellow-bg:#fefce8; --red-bg:#fef2f2;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    background:var(--bg); color:var(--text); padding:24px;
+  }
+  .wrap{max-width:960px; margin:0 auto;}
+  h1{font-size:22px; margin:0 0 4px;}
+  .subtitle{color:var(--muted); font-size:13px; margin-bottom:20px;}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:18px; margin-bottom:18px;}
+  .card h2{font-size:15px; margin:0 0 14px; color:var(--text);}
+
+  /* Dashboard */
+  .stat-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px;}
+  .stat{background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px 14px;}
+  .stat .label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-bottom:4px;}
+  .stat .value{font-size:24px; font-weight:700;}
+  .stat .sub{font-size:12px; color:var(--muted); margin-top:2px;}
+
+  /* Expiration */
+  .exp-row{display:flex; align-items:center; gap:16px; flex-wrap:wrap;}
+  .exp-row label{font-size:13px; color:var(--muted);}
+  input[type=date]{padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px;}
+  .countdown-badge{
+    padding:10px 16px; border-radius:8px; font-weight:700; font-size:15px; display:flex; flex-direction:column; align-items:flex-start;
+  }
+  .countdown-badge .days{font-size:20px;}
+  .badge-green{background:var(--green-bg); color:var(--green);}
+  .badge-yellow{background:var(--yellow-bg); color:var(--yellow);}
+  .badge-red{background:var(--red-bg); color:var(--red);}
+
+  /* Checklist */
+  .check-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;}
+  .check-item{
+    display:flex; justify-content:space-between; align-items:center; padding:10px 12px;
+    border-radius:8px; font-size:13px; border:1px solid var(--border);
+  }
+  .check-item.pass{background:var(--green-bg); border-color:#bbf7d0;}
+  .check-item.fail{background:var(--red-bg); border-color:#fecaca;}
+  .check-item .status{font-weight:700; font-size:12px;}
+  .pass .status{color:var(--green);}
+  .fail .status{color:var(--red);}
+  .all-met{
+    margin-top:10px; padding:12px; background:var(--green-bg); border:1px solid #bbf7d0;
+    border-radius:8px; color:var(--green); font-weight:700; text-align:center; font-size:14px;
+  }
+  .warn-note{font-size:12px; color:var(--red); margin-top:6px;}
+
+  /* Form */
+  form{display:grid; grid-template-columns:repeat(6,1fr); gap:10px; align-items:end;}
+  .field{display:flex; flex-direction:column; gap:4px;}
+  .field.span2{grid-column:span 2;}
+  .field label{font-size:11px; color:var(--muted);}
+  input,select{
+    padding:7px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px; width:100%;
+    background:#fff; color:var(--text);
+  }
+  button{
+    cursor:pointer; border:none; border-radius:6px; padding:8px 14px; font-size:13px; font-weight:600;
+  }
+  .btn-primary{background:var(--blue); color:#fff;}
+  .btn-primary:hover{background:#1d4ed8;}
+  .btn-cancel{background:var(--border); color:var(--text);}
+  .form-actions{grid-column:span 6; display:flex; gap:8px; justify-content:flex-end;}
+
+  /* Table */
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th,td{text-align:left; padding:8px 10px; border-bottom:1px solid var(--border);}
+  th{color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase;}
+  tr:hover{background:#fafafa;}
+  .tag{padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600;}
+  .tag-ethics{background:#ede9fe; color:#6d28d9;}
+  .tag-core{background:#dbeafe; color:#1e40af;}
+  .tag-related{background:#fef3c7; color:#92400e;}
+  .deliv{font-size:12px; color:var(--muted);}
+  .row-actions{display:flex; gap:6px;}
+  .icon-btn{background:none; border:none; cursor:pointer; font-size:14px; padding:2px 6px; border-radius:4px;}
+  .icon-btn:hover{background:var(--bg);}
+  .empty{color:var(--muted); text-align:center; padding:24px; font-size:13px;}
+  .top-actions{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CEU Tracker</h1>
+  <div class="subtitle">Biennial licensure renewal — 35 hour requirement tracker</div>
+
+  <!-- Dashboard -->
+  <div class="card">
+    <h2>Summary</h2>
+    <div class="stat-grid" id="statGrid"></div>
+  </div>
+
+  <!-- Expiration -->
+  <div class="card">
+    <h2>License Expiration</h2>
+    <div class="exp-row">
+      <label for="expDate">Expiration date:</label>
+      <input type="date" id="expDate">
+      <div id="countdownBadge" class="countdown-badge badge-green">
+        <span class="days" id="daysRemaining">--</span>
+        <span id="daysLabel">days remaining</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Checklist -->
+  <div class="card">
+    <h2>Renewal Requirements Checklist</h2>
+    <ul class="check-list" id="checkList"></ul>
+    <div id="allMetBanner"></div>
+  </div>
+
+  <!-- Entry form -->
+  <div class="card">
+    <div class="top-actions">
+      <h2 style="margin:0;">Log CEU Activity</h2>
+    </div>
+    <form id="entryForm">
+      <input type="hidden" id="editId">
+      <div class="field span2">
+        <label for="activityName">Activity / Course Name</label>
+        <input type="text" id="activityName" required placeholder="e.g. Ethics in Telehealth">
+      </div>
+      <div class="field">
+        <label for="dateCompleted">Date Completed</label>
+        <input type="date" id="dateCompleted" required>
+      </div>
+      <div class="field">
+        <label for="hours">Hours</label>
+        <input type="number" id="hours" step="0.25" min="0" required placeholder="1.5">
+      </div>
+      <div class="field">
+        <label for="category">Category</label>
+        <select id="category">
+          <option value="Ethics">Ethics</option>
+          <option value="Core">Core</option>
+          <option value="Related">Related</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="delivery">Delivery Method</label>
+        <select id="delivery">
+          <option value="Synchronous">Synchronous</option>
+          <option value="Asynchronous">Asynchronous</option>
+        </select>
+      </div>
+      <div class="field span2" style="grid-column:span 4;">
+        <label for="notes">Notes (provider, certificate #, etc.)</label>
+        <input type="text" id="notes" placeholder="Optional">
+      </div>
+      <div class="form-actions">
+        <button type="button" id="cancelEdit" class="btn-cancel" style="display:none;">Cancel Edit</button>
+        <button type="submit" class="btn-primary" id="submitBtn">Add Entry</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Table -->
+  <div class="card">
+    <h2>Logged Activities</h2>
+    <div id="tableWrap"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   DATA LAYER — localStorage persistence
+   ============================================================ */
+const STORAGE_KEY = 'ceu_tracker_entries_v1';
+const EXP_KEY = 'ceu_tracker_expiration_v1';
+
+function loadEntries(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ console.error('Failed to load entries', e); return []; }
+}
+function saveEntries(entries){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+}
+function loadExpiration(){
+  const saved = localStorage.getItem(EXP_KEY);
+  if(saved) return saved;
+  // default to 9/30 of the current year (or next year if already passed)
+  const now = new Date();
+  let year = now.getFullYear();
+  const defaultDate = new Date(year, 8, 30); // month is 0-indexed: 8 = Sept
+  if(defaultDate < now) year += 1;
+  const iso = `${year}-09-30`;
+  localStorage.setItem(EXP_KEY, iso);
+  return iso;
+}
+function saveExpiration(dateStr){
+  localStorage.setItem(EXP_KEY, dateStr);
+}
+
+let entries = loadEntries();
+
+/* ============================================================
+   COMPLIANCE CALCULATION LOGIC
+   All regulatory rules are isolated here for easy auditing/updating.
+   ------------------------------------------------------------
+   RULES (biennial cycle):
+   1. Total required hours: 35
+   2. Ethics minimum: 5 (of the 35)
+   3. Of remaining 30 (35-5): Core minimum 15, Related maximum 15
+   4. Asynchronous cap: max 10 hours total (any category)
+   5. Ethics delivery restriction: ALL ethics hours must be Synchronous
+      (0 asynchronous ethics hours allowed)
+   ============================================================ */
+function calculateCompliance(entries){
+  const sum = (arr) => arr.reduce((s,e)=>s+Number(e.hours||0), 0);
+
+  const totalHours = sum(entries);
+  const ethicsHours = sum(entries.filter(e=>e.category==='Ethics'));
+  const coreHours = sum(entries.filter(e=>e.category==='Core'));
+  const relatedHours = sum(entries.filter(e=>e.category==='Related'));
+
+  const asyncHours = sum(entries.filter(e=>e.delivery==='Asynchronous'));
+  const syncHours = sum(entries.filter(e=>e.delivery==='Synchronous'));
+
+  const asyncEthicsHours = sum(entries.filter(e=>e.category==='Ethics' && e.delivery==='Asynchronous'));
+
+  // Requirement checks
+  const ethicsMet = ethicsHours >= 5;
+  const coreMet = coreHours >= 15;
+  const relatedMet = relatedHours <= 15;
+  const asyncCapMet = asyncHours <= 10;
+  const totalMet = totalHours >= 35;
+  const ethicsDeliveryMet = asyncEthicsHours === 0; // no async ethics allowed
+
+  const allMet = ethicsMet && coreMet && relatedMet && asyncCapMet && totalMet && ethicsDeliveryMet;
+
+  // Total hours remaining (floored at 0)
+  const hoursRemaining = Math.max(0, 35 - totalHours);
+
+  // Synchronous hours remaining:
+  // Minimum sync required overall = 35 - 10 (async cap) = 25
+  // Ethics hours (already synchronous-only) count toward that 25.
+  // So: syncNeeded = max(0, 25 - syncHours-already-logged)
+  const MIN_SYNC_REQUIRED = 35 - 10; // 25
+  const syncHoursRemaining = Math.max(0, MIN_SYNC_REQUIRED - syncHours);
+
+  return {
+    totalHours, ethicsHours, coreHours, relatedHours,
+    asyncHours, syncHours, asyncEthicsHours,
+    ethicsMet, coreMet, relatedMet, asyncCapMet, totalMet, ethicsDeliveryMet,
+    allMet, hoursRemaining, syncHoursRemaining
+  };
+}
+
+/* ============================================================
+   RENDERING
+   ============================================================ */
+function fmt(n){
+  const r = Math.round(n*100)/100;
+  return r % 1 === 0 ? r.toFixed(0) : r.toFixed(2).replace(/0$/,'');
+}
+
+function renderDashboard(c){
+  const grid = document.getElementById('statGrid');
+  grid.innerHTML = `
+    <div class="stat">
+      <div class="label">Total Hours Accumulated</div>
+      <div class="value">${fmt(c.totalHours)} <span style="font-size:14px; color:var(--muted); font-weight:400;">/ 35</span></div>
+    </div>
+    <div class="stat">
+      <div class="label">Professional Ethics Hours</div>
+      <div class="value">${fmt(c.ethicsHours)} <span style="font-size:14px; color:var(--muted); font-weight:400;">/ 5 min</span></div>
+      ${c.asyncEthicsHours > 0 ? `<div class="sub" style="color:var(--red);">${fmt(c.asyncEthicsHours)} logged asynchronously ⚠</div>` : ''}
+    </div>
+    <div class="stat">
+      <div class="label">Total Hours Remaining</div>
+      <div class="value">${fmt(c.hoursRemaining)}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Sync Hours Still Needed</div>
+      <div class="value">${fmt(c.syncHoursRemaining)}</div>
+      <div class="sub">to satisfy 25-hr sync minimum (35 - 10hr async cap)</div>
+    </div>
+  `;
+}
+
+function renderExpiration(){
+  const expInput = document.getElementById('expDate');
+  const expDate = loadExpiration();
+  expInput.value = expDate;
+
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const target = new Date(expDate + 'T00:00:00');
+  const diffMs = target - today;
+  const days = Math.ceil(diffMs / (1000*60*60*24));
+
+  const badge = document.getElementById('countdownBadge');
+  const daysEl = document.getElementById('daysRemaining');
+  const labelEl = document.getElementById('daysLabel');
+
+  badge.classList.remove('badge-green','badge-yellow','badge-red');
+  if(days < 0){
+    daysEl.textContent = `${Math.abs(days)}`;
+    labelEl.textContent = 'days OVERDUE';
+    badge.classList.add('badge-red');
+  } else {
+    daysEl.textContent = days;
+    labelEl.textContent = 'days remaining';
+    if(days > 90) badge.classList.add('badge-green');
+    else if(days >= 30) badge.classList.add('badge-yellow');
+    else badge.classList.add('badge-red');
+  }
+}
+
+function renderChecklist(c){
+  const list = document.getElementById('checkList');
+  const items = [
+    {label: `Total hours ≥ 35 (currently ${fmt(c.totalHours)})`, met: c.totalMet},
+    {label: `Ethics hours ≥ 5 (currently ${fmt(c.ethicsHours)})`, met: c.ethicsMet},
+    {label: `Core hours ≥ 15 (currently ${fmt(c.coreHours)})`, met: c.coreMet},
+    {label: `Related hours ≤ 15 (currently ${fmt(c.relatedHours)})`, met: c.relatedMet},
+    {label: `Asynchronous hours ≤ 10 (currently ${fmt(c.asyncHours)})`, met: c.asyncCapMet},
+    {label: `All ethics hours synchronous (${fmt(c.asyncEthicsHours)} logged async)`, met: c.ethicsDeliveryMet},
+  ];
+
+  list.innerHTML = items.map(it => `
+    <li class="check-item ${it.met ? 'pass':'fail'}">
+      <span>${it.label}</span>
+      <span class="status">${it.met ? '✓ MET' : '✗ NOT YET MET'}</span>
+    </li>
+  `).join('');
+
+  const banner = document.getElementById('allMetBanner');
+  banner.innerHTML = c.allMet
+    ? `<div class="all-met">Renewal Requirements Met ✅</div>`
+    : '';
+}
+
+function renderTable(){
+  const wrap = document.getElementById('tableWrap');
+  if(entries.length === 0){
+    wrap.innerHTML = `<div class="empty">No entries yet. Add your first CEU activity above.</div>`;
+    return;
+  }
+  const sorted = [...entries].sort((a,b)=> new Date(b.dateCompleted) - new Date(a.dateCompleted));
+  const tagClass = {Ethics:'tag-ethics', Core:'tag-core', Related:'tag-related'};
+
+  wrap.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Activity</th><th>Date</th><th>Hours</th><th>Category</th><th>Delivery</th><th>Notes</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${sorted.map(e => `
+          <tr>
+            <td>${escapeHtml(e.activityName)}</td>
+            <td>${e.dateCompleted}</td>
+            <td>${fmt(e.hours)}</td>
+            <td><span class="tag ${tagClass[e.category]}">${e.category}</span></td>
+            <td class="deliv">${e.delivery}</td>
+            <td class="deliv">${escapeHtml(e.notes||'')}</td>
+            <td>
+              <div class="row-actions">
+                <button class="icon-btn" onclick="editEntry('${e.id}')" title="Edit">✏️</button>
+                <button class="icon-btn" onclick="deleteEntry('${e.id}')" title="Delete">🗑️</button>
+              </div>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function renderAll(){
+  const compliance = calculateCompliance(entries);
+  renderDashboard(compliance);
+  renderChecklist(compliance);
+  renderTable();
+}
+
+/* ============================================================
+   FORM HANDLING (Add / Edit / Delete)
+   ============================================================ */
+const form = document.getElementById('entryForm');
+const submitBtn = document.getElementById('submitBtn');
+const cancelBtn = document.getElementById('cancelEdit');
+const editIdField = document.getElementById('editId');
+
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const id = editIdField.value;
+  const entryData = {
+    activityName: document.getElementById('activityName').value.trim(),
+    dateCompleted: document.getElementById('dateCompleted').value,
+    hours: parseFloat(document.getElementById('hours').value),
+    category: document.getElementById('category').value,
+    delivery: document.getElementById('delivery').value,
+    notes: document.getElementById('notes').value.trim(),
+  };
+
+  if(id){
+    entries = entries.map(en => en.id === id ? {...en, ...entryData} : en);
+  } else {
+    entryData.id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+    entries.push(entryData);
+  }
+  saveEntries(entries);
+  resetForm();
+  renderAll();
+});
+
+function resetForm(){
+  form.reset();
+  editIdField.value = '';
+  submitBtn.textContent = 'Add Entry';
+  cancelBtn.style.display = 'none';
+  document.getElementById('category').value = 'Ethics';
+  document.getElementById('delivery').value = 'Synchronous';
+}
+
+cancelBtn.addEventListener('click', resetForm);
+
+function editEntry(id){
+  const e = entries.find(en => en.id === id);
+  if(!e) return;
+  editIdField.value = e.id;
+  document.getElementById('activityName').value = e.activityName;
+  document.getElementById('dateCompleted').value = e.dateCompleted;
+  document.getElementById('hours').value = e.hours;
+  document.getElementById('category').value = e.category;
+  document.getElementById('delivery').value = e.delivery;
+  document.getElementById('notes').value = e.notes || '';
+  submitBtn.textContent = 'Save Changes';
+  cancelBtn.style.display = 'inline-block';
+  window.scrollTo({top: document.getElementById('entryForm').offsetTop - 20, behavior:'smooth'});
+}
+
+function deleteEntry(id){
+  if(!confirm('Delete this entry?')) return;
+  entries = entries.filter(en => en.id !== id);
+  saveEntries(entries);
+  renderAll();
+}
+
+/* ============================================================
+   EXPIRATION DATE HANDLING
+   ============================================================ */
+document.getElementById('expDate').addEventListener('change', (e) => {
+  saveExpiration(e.target.value);
+  renderExpiration();
+});
+
+/* ============================================================
+   INIT
+   ============================================================ */
+resetForm();
+renderExpiration();
+renderAll();
+</script>
+</body>
+</html>
