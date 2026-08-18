@@ -20,6 +20,11 @@
   .card{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:18px; margin-bottom:18px;}
   .card h2{font-size:15px; margin:0 0 14px; color:var(--text);}
 
+  /* Tabs */
+  .tabs{display:flex; gap:4px; margin-bottom:18px; border-bottom:1px solid var(--border);}
+  .tab{padding:8px 16px; font-size:13px; font-weight:600; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent;}
+  .tab.active{color:var(--blue); border-bottom-color:var(--blue);}
+
   /* Dashboard */
   .stat-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px;}
   .stat{background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px 14px;}
@@ -54,7 +59,6 @@
     margin-top:10px; padding:12px; background:var(--green-bg); border:1px solid #bbf7d0;
     border-radius:8px; color:var(--green); font-weight:700; text-align:center; font-size:14px;
   }
-  .warn-note{font-size:12px; color:var(--red); margin-top:6px;}
 
   /* Form */
   form{display:grid; grid-template-columns:repeat(6,1fr); gap:10px; align-items:end;}
@@ -71,6 +75,10 @@
   .btn-primary{background:var(--blue); color:#fff;}
   .btn-primary:hover{background:#1d4ed8;}
   .btn-cancel{background:var(--border); color:var(--text);}
+  .btn-danger{background:var(--red); color:#fff;}
+  .btn-danger:hover{background:#b91c1c;}
+  .btn-outline{background:#fff; border:1px solid var(--border); color:var(--text);}
+  .btn-outline:hover{background:var(--bg);}
   .form-actions{grid-column:span 6; display:flex; gap:8px; justify-content:flex-end;}
 
   /* Table */
@@ -88,6 +96,28 @@
   .icon-btn:hover{background:var(--bg);}
   .empty{color:var(--muted); text-align:center; padding:24px; font-size:13px;}
   .top-actions{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
+
+  /* Archive / Reset */
+  .archive-card{border:1px solid #fde68a; background:#fffbeb;}
+  .archive-card h2{color:#92400e;}
+  .archive-warning{font-size:12px; color:#92400e; margin-bottom:12px; line-height:1.5;}
+  .cycle-item{border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin-bottom:10px;}
+  .cycle-header{display:flex; justify-content:space-between; align-items:center; cursor:pointer;}
+  .cycle-title{font-weight:600; font-size:13px;}
+  .cycle-sub{font-size:12px; color:var(--muted); margin-top:2px;}
+  .cycle-body{margin-top:10px; display:none;}
+  .cycle-body.open{display:block;}
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4);
+    align-items:center; justify-content:center; z-index:100;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal{background:#fff; border-radius:10px; padding:22px; max-width:440px; width:90%;}
+  .modal h3{margin:0 0 10px; font-size:16px;}
+  .modal p{font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:16px;}
+  .modal-actions{display:flex; gap:8px; justify-content:flex-end;}
+  .modal label{font-size:12px; color:var(--muted); display:block; margin-bottom:4px;}
+  .modal input{margin-bottom:14px;}
 </style>
 </head>
 <body>
@@ -95,81 +125,120 @@
   <h1>CEU Tracker</h1>
   <div class="subtitle">Biennial licensure renewal — 35 hour requirement tracker</div>
 
-  <!-- Dashboard -->
-  <div class="card">
-    <h2>Summary</h2>
-    <div class="stat-grid" id="statGrid"></div>
+  <div class="tabs">
+    <div class="tab active" id="tabCurrent" onclick="switchTab('current')">Current Cycle</div>
+    <div class="tab" id="tabHistory" onclick="switchTab('history')">Cycle History</div>
   </div>
 
-  <!-- Expiration -->
-  <div class="card">
-    <h2>License Expiration</h2>
-    <div class="exp-row">
-      <label for="expDate">Expiration date:</label>
-      <input type="date" id="expDate">
-      <div id="countdownBadge" class="countdown-badge badge-green">
-        <span class="days" id="daysRemaining">--</span>
-        <span id="daysLabel">days remaining</span>
+  <!-- ================= CURRENT CYCLE VIEW ================= -->
+  <div id="viewCurrent">
+
+    <div class="card">
+      <h2>Summary</h2>
+      <div class="stat-grid" id="statGrid"></div>
+    </div>
+
+    <div class="card">
+      <h2>License Expiration</h2>
+      <div class="exp-row">
+        <label for="expDate">Expiration date:</label>
+        <input type="date" id="expDate">
+        <div id="countdownBadge" class="countdown-badge badge-green">
+          <span class="days" id="daysRemaining">--</span>
+          <span id="daysLabel">days remaining</span>
+        </div>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>Renewal Requirements Checklist</h2>
+      <ul class="check-list" id="checkList"></ul>
+      <div id="allMetBanner"></div>
+    </div>
+
+    <div class="card">
+      <div class="top-actions">
+        <h2 style="margin:0;">Log CEU Activity</h2>
+      </div>
+      <form id="entryForm">
+        <input type="hidden" id="editId">
+        <div class="field span2">
+          <label for="activityName">Activity / Course Name</label>
+          <input type="text" id="activityName" required placeholder="e.g. Ethics in Telehealth">
+        </div>
+        <div class="field">
+          <label for="dateCompleted">Date Completed</label>
+          <input type="date" id="dateCompleted" required>
+        </div>
+        <div class="field">
+          <label for="hours">Hours</label>
+          <input type="number" id="hours" step="0.25" min="0" required placeholder="1.5">
+        </div>
+        <div class="field">
+          <label for="category">Category</label>
+          <select id="category">
+            <option value="Ethics">Ethics</option>
+            <option value="Core">Core</option>
+            <option value="Related">Related</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="delivery">Delivery Method</label>
+          <select id="delivery">
+            <option value="Synchronous">Synchronous</option>
+            <option value="Asynchronous">Asynchronous</option>
+          </select>
+        </div>
+        <div class="field span2" style="grid-column:span 4;">
+          <label for="notes">Notes (provider, certificate #, etc.)</label>
+          <input type="text" id="notes" placeholder="Optional">
+        </div>
+        <div class="form-actions">
+          <button type="button" id="cancelEdit" class="btn-cancel" style="display:none;">Cancel Edit</button>
+          <button type="submit" class="btn-primary" id="submitBtn">Add Entry</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Logged Activities</h2>
+      <div id="tableWrap"></div>
+    </div>
+
+    <!-- Renewal Cycle Reset -->
+    <div class="card archive-card">
+      <h2>Renewal Cycle Reset</h2>
+      <div class="archive-warning">
+        When you've completed and renewed your license, archive this cycle to save it as a permanent historical record, then start a brand-new empty tracker for your next 2-year cycle. Archived cycles remain viewable anytime under the <strong>Cycle History</strong> tab and cannot be edited afterward.
+      </div>
+      <button class="btn-danger" onclick="openArchiveModal()">Archive This Cycle &amp; Start New</button>
+    </div>
+
+  </div>
+
+  <!-- ================= HISTORY VIEW ================= -->
+  <div id="viewHistory" style="display:none;">
+    <div class="card">
+      <h2>Archived Cycles</h2>
+      <div id="historyList"></div>
     </div>
   </div>
 
-  <!-- Checklist -->
-  <div class="card">
-    <h2>Renewal Requirements Checklist</h2>
-    <ul class="check-list" id="checkList"></ul>
-    <div id="allMetBanner"></div>
-  </div>
+</div>
 
-  <!-- Entry form -->
-  <div class="card">
-    <div class="top-actions">
-      <h2 style="margin:0;">Log CEU Activity</h2>
+<!-- Archive confirmation modal -->
+<div class="modal-overlay" id="archiveModal">
+  <div class="modal">
+    <h3>Archive Current Cycle?</h3>
+    <p>
+      This will save all <span id="modalEntryCount">0</span> logged entries and your compliance status as a permanent historical record, then clear the current tracker so you can start your next 2-year cycle fresh. This cannot be undone.
+    </p>
+    <label for="cycleLabel">Label this cycle (optional)</label>
+    <input type="text" id="cycleLabel" placeholder="e.g. 2024-2026 Renewal Cycle">
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeArchiveModal()">Cancel</button>
+      <button class="btn-danger" onclick="confirmArchive()">Archive &amp; Start New Cycle</button>
     </div>
-    <form id="entryForm">
-      <input type="hidden" id="editId">
-      <div class="field span2">
-        <label for="activityName">Activity / Course Name</label>
-        <input type="text" id="activityName" required placeholder="e.g. Ethics in Telehealth">
-      </div>
-      <div class="field">
-        <label for="dateCompleted">Date Completed</label>
-        <input type="date" id="dateCompleted" required>
-      </div>
-      <div class="field">
-        <label for="hours">Hours</label>
-        <input type="number" id="hours" step="0.25" min="0" required placeholder="1.5">
-      </div>
-      <div class="field">
-        <label for="category">Category</label>
-        <select id="category">
-          <option value="Ethics">Ethics</option>
-          <option value="Core">Core</option>
-          <option value="Related">Related</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="delivery">Delivery Method</label>
-        <select id="delivery">
-          <option value="Synchronous">Synchronous</option>
-          <option value="Asynchronous">Asynchronous</option>
-        </select>
-      </div>
-      <div class="field span2" style="grid-column:span 4;">
-        <label for="notes">Notes (provider, certificate #, etc.)</label>
-        <input type="text" id="notes" placeholder="Optional">
-      </div>
-      <div class="form-actions">
-        <button type="button" id="cancelEdit" class="btn-cancel" style="display:none;">Cancel Edit</button>
-        <button type="submit" class="btn-primary" id="submitBtn">Add Entry</button>
-      </div>
-    </form>
-  </div>
-
-  <!-- Table -->
-  <div class="card">
-    <h2>Logged Activities</h2>
-    <div id="tableWrap"></div>
   </div>
 </div>
 
@@ -179,6 +248,7 @@
    ============================================================ */
 const STORAGE_KEY = 'ceu_tracker_entries_v1';
 const EXP_KEY = 'ceu_tracker_expiration_v1';
+const ARCHIVE_KEY = 'ceu_tracker_archive_v1'; // array of past cycles
 
 function loadEntries(){
   try{
@@ -192,10 +262,9 @@ function saveEntries(entries){
 function loadExpiration(){
   const saved = localStorage.getItem(EXP_KEY);
   if(saved) return saved;
-  // default to 9/30 of the current year (or next year if already passed)
   const now = new Date();
   let year = now.getFullYear();
-  const defaultDate = new Date(year, 8, 30); // month is 0-indexed: 8 = Sept
+  const defaultDate = new Date(year, 8, 30); // Sept 30
   if(defaultDate < now) year += 1;
   const iso = `${year}-09-30`;
   localStorage.setItem(EXP_KEY, iso);
@@ -204,8 +273,18 @@ function loadExpiration(){
 function saveExpiration(dateStr){
   localStorage.setItem(EXP_KEY, dateStr);
 }
+function loadArchive(){
+  try{
+    const raw = localStorage.getItem(ARCHIVE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ console.error('Failed to load archive', e); return []; }
+}
+function saveArchive(archive){
+  localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archive));
+}
 
 let entries = loadEntries();
+let archive = loadArchive();
 
 /* ============================================================
    COMPLIANCE CALCULATION LOGIC
@@ -219,36 +298,30 @@ let entries = loadEntries();
    5. Ethics delivery restriction: ALL ethics hours must be Synchronous
       (0 asynchronous ethics hours allowed)
    ============================================================ */
-function calculateCompliance(entries){
+function calculateCompliance(entryList){
   const sum = (arr) => arr.reduce((s,e)=>s+Number(e.hours||0), 0);
 
-  const totalHours = sum(entries);
-  const ethicsHours = sum(entries.filter(e=>e.category==='Ethics'));
-  const coreHours = sum(entries.filter(e=>e.category==='Core'));
-  const relatedHours = sum(entries.filter(e=>e.category==='Related'));
+  const totalHours = sum(entryList);
+  const ethicsHours = sum(entryList.filter(e=>e.category==='Ethics'));
+  const coreHours = sum(entryList.filter(e=>e.category==='Core'));
+  const relatedHours = sum(entryList.filter(e=>e.category==='Related'));
 
-  const asyncHours = sum(entries.filter(e=>e.delivery==='Asynchronous'));
-  const syncHours = sum(entries.filter(e=>e.delivery==='Synchronous'));
+  const asyncHours = sum(entryList.filter(e=>e.delivery==='Asynchronous'));
+  const syncHours = sum(entryList.filter(e=>e.delivery==='Synchronous'));
 
-  const asyncEthicsHours = sum(entries.filter(e=>e.category==='Ethics' && e.delivery==='Asynchronous'));
+  const asyncEthicsHours = sum(entryList.filter(e=>e.category==='Ethics' && e.delivery==='Asynchronous'));
 
-  // Requirement checks
   const ethicsMet = ethicsHours >= 5;
   const coreMet = coreHours >= 15;
   const relatedMet = relatedHours <= 15;
   const asyncCapMet = asyncHours <= 10;
   const totalMet = totalHours >= 35;
-  const ethicsDeliveryMet = asyncEthicsHours === 0; // no async ethics allowed
+  const ethicsDeliveryMet = asyncEthicsHours === 0;
 
   const allMet = ethicsMet && coreMet && relatedMet && asyncCapMet && totalMet && ethicsDeliveryMet;
 
-  // Total hours remaining (floored at 0)
   const hoursRemaining = Math.max(0, 35 - totalHours);
 
-  // Synchronous hours remaining:
-  // Minimum sync required overall = 35 - 10 (async cap) = 25
-  // Ethics hours (already synchronous-only) count toward that 25.
-  // So: syncNeeded = max(0, 25 - syncHours-already-logged)
   const MIN_SYNC_REQUIRED = 35 - 10; // 25
   const syncHoursRemaining = Math.max(0, MIN_SYNC_REQUIRED - syncHours);
 
@@ -261,7 +334,7 @@ function calculateCompliance(entries){
 }
 
 /* ============================================================
-   RENDERING
+   RENDERING — CURRENT CYCLE
    ============================================================ */
 function fmt(n){
   const r = Math.round(n*100)/100;
@@ -469,11 +542,168 @@ document.getElementById('expDate').addEventListener('change', (e) => {
 });
 
 /* ============================================================
+   RENEWAL CYCLE RESET / ARCHIVE
+   ------------------------------------------------------------
+   Archiving takes a snapshot of the current entries + expiration
+   date + computed compliance summary, stores it permanently in
+   the archive list, then clears the active tracker so the user
+   can begin logging their next 2-year cycle from zero.
+   Archived cycles are read-only historical records.
+   ============================================================ */
+function openArchiveModal(){
+  document.getElementById('modalEntryCount').textContent = entries.length;
+  document.getElementById('cycleLabel').value = '';
+  document.getElementById('archiveModal').classList.add('open');
+}
+function closeArchiveModal(){
+  document.getElementById('archiveModal').classList.remove('open');
+}
+
+function confirmArchive(){
+  const compliance = calculateCompliance(entries);
+  const expDate = loadExpiration();
+  const labelInput = document.getElementById('cycleLabel').value.trim();
+
+  const today = new Date();
+  const defaultLabel = `Cycle archived ${today.toISOString().slice(0,10)}`;
+
+  const archivedCycle = {
+    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+    label: labelInput || defaultLabel,
+    archivedOn: today.toISOString().slice(0,10),
+    expirationDate: expDate,
+    entries: entries,          // full historical entry list, preserved as-is
+    compliance: compliance,    // frozen snapshot of the compliance summary
+  };
+
+  archive.push(archivedCycle);
+  saveArchive(archive);
+
+  // Clear current cycle for a fresh start
+  entries = [];
+  saveEntries(entries);
+
+  // Reset expiration to a sensible new default (2 years out from old expiration if possible)
+  let newExpIso;
+  try{
+    const oldExp = new Date(expDate + 'T00:00:00');
+    const newExp = new Date(oldExp.getFullYear() + 2, oldExp.getMonth(), oldExp.getDate());
+    newExpIso = newExp.toISOString().slice(0,10);
+  }catch(e){
+    const now = new Date();
+    newExpIso = `${now.getFullYear()+2}-09-30`;
+  }
+  saveExpiration(newExpIso);
+
+  closeArchiveModal();
+  renderAll();
+  renderExpiration();
+  renderHistory();
+  switchTab('current');
+}
+
+/* ============================================================
+   HISTORY VIEW RENDERING
+   ============================================================ */
+function renderHistory(){
+  const wrap = document.getElementById('historyList');
+  if(archive.length === 0){
+    wrap.innerHTML = `<div class="empty">No archived cycles yet. Once you complete a renewal cycle, archive it here to keep a permanent record.</div>`;
+    return;
+  }
+
+  const sorted = [...archive].sort((a,b)=> new Date(b.archivedOn) - new Date(a.archivedOn));
+  const tagClass = {Ethics:'tag-ethics', Core:'tag-core', Related:'tag-related'};
+
+  wrap.innerHTML = sorted.map(cycle => {
+    const c = cycle.compliance;
+    const statusBadge = c.allMet
+      ? `<span style="color:var(--green); font-weight:700; font-size:12px;">✓ Requirements Met</span>`
+      : `<span style="color:var(--red); font-weight:700; font-size:12px;">✗ Incomplete</span>`;
+
+    const rows = [...cycle.entries]
+      .sort((a,b)=> new Date(b.dateCompleted) - new Date(a.dateCompleted))
+      .map(e => `
+        <tr>
+          <td>${escapeHtml(e.activityName)}</td>
+          <td>${e.dateCompleted}</td>
+          <td>${fmt(e.hours)}</td>
+          <td><span class="tag ${tagClass[e.category]}">${e.category}</span></td>
+          <td class="deliv">${e.delivery}</td>
+          <td class="deliv">${escapeHtml(e.notes||'')}</td>
+        </tr>
+      `).join('');
+
+    return `
+      <div class="cycle-item">
+        <div class="cycle-header" onclick="toggleCycle('${cycle.id}')">
+          <div>
+            <div class="cycle-title">${escapeHtml(cycle.label)}</div>
+            <div class="cycle-sub">Archived ${cycle.archivedOn} · License expiration on record: ${cycle.expirationDate} · ${fmt(c.totalHours)} total hours</div>
+          </div>
+          ${statusBadge}
+        </div>
+        <div class="cycle-body" id="cycleBody-${cycle.id}">
+          <div class="stat-grid" style="margin:12px 0;">
+            <div class="stat">
+              <div class="label">Total Hours</div>
+              <div class="value">${fmt(c.totalHours)} / 35</div>
+            </div>
+            <div class="stat">
+              <div class="label">Ethics Hours</div>
+              <div class="value">${fmt(c.ethicsHours)} / 5 min</div>
+            </div>
+            <div class="stat">
+              <div class="label">Core Hours</div>
+              <div class="value">${fmt(c.coreHours)} / 15 min</div>
+            </div>
+            <div class="stat">
+              <div class="label">Related Hours</div>
+              <div class="value">${fmt(c.relatedHours)} / 15 max</div>
+            </div>
+            <div class="stat">
+              <div class="label">Async Hours</div>
+              <div class="value">${fmt(c.asyncHours)} / 10 max</div>
+            </div>
+          </div>
+          ${cycle.entries.length > 0 ? `
+            <table>
+              <thead>
+                <tr><th>Activity</th><th>Date</th><th>Hours</th><th>Category</th><th>Delivery</th><th>Notes</th></tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          ` : `<div class="empty">No entries were logged in this cycle.</div>`}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleCycle(id){
+  const body = document.getElementById(`cycleBody-${id}`);
+  body.classList.toggle('open');
+}
+
+/* ============================================================
+   TAB SWITCHING
+   ============================================================ */
+function switchTab(tab){
+  const isCurrent = tab === 'current';
+  document.getElementById('viewCurrent').style.display = isCurrent ? 'block' : 'none';
+  document.getElementById('viewHistory').style.display = isCurrent ? 'none' : 'block';
+  document.getElementById('tabCurrent').classList.toggle('active', isCurrent);
+  document.getElementById('tabHistory').classList.toggle('active', !isCurrent);
+  if(!isCurrent) renderHistory();
+}
+
+/* ============================================================
    INIT
    ============================================================ */
 resetForm();
 renderExpiration();
 renderAll();
+renderHistory();
 </script>
 </body>
 </html>
